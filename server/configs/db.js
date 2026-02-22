@@ -29,7 +29,7 @@ const connectDB = async () => {
     await db.collection('alerts').createIndex({ iot_module_id: 1 });
 
     // Users indexes
-    await db.collection('users').createIndex({ email: 1 }, { unique: true });
+    await db.collection('users').createIndex({ UserEmail: 1 }, { unique: true });
     await db.collection('users').createIndex({ manufacturer_id: 1 });
 
     // Products & batches indexes
