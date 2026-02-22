@@ -1,4 +1,5 @@
 const IoTModule = require('../models/IoTModule');
+const generateId = require('../utils/generateId');
 
 const getModules = async (req, res) => {
   try {
@@ -11,7 +12,8 @@ const getModules = async (req, res) => {
 
 const createModule = async (req, res) => {
   try {
-    const module = await IoTModule.create(req.body);
+    const IMID = await generateId('IM', 'IoTModule');
+    const module = await IoTModule.create({ ...req.body, IMID });
     res.status(201).json(module);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -20,7 +22,7 @@ const createModule = async (req, res) => {
 
 const toggleModuleActive = async (req, res) => {
   try {
-    const module = await IoTModule.findOne({ IMID: req.params.id });
+    const module = await IoTModule.findById(req.params.id);
     if (!module) return res.status(404).json({ message: 'IoT Module not found.' });
     module.IsActive = !module.IsActive;
     await module.save();

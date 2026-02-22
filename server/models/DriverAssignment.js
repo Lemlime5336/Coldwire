@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const driverAssignmentSchema = new mongoose.Schema({
   AssignmentID: { type: String, required: true, unique: true },
-  DriverID:     { type: String, required: true }, // FK → User (driver)
-  TruckID:      { type: String, required: true }, // FK → Truck
+  DriverID:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  TruckID:      { type: mongoose.Schema.Types.ObjectId, ref: 'Truck', required: true },
   StartTime:    { type: Date },
   EndTime:      { type: Date },
 });

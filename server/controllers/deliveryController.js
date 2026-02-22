@@ -1,9 +1,11 @@
 const Delivery = require('../models/Delivery');
+const generateId = require('../utils/generateId');
 
 // POST /api/deliveries
 const createDelivery = async (req, res) => {
   try {
-    const delivery = await Delivery.create({ ...req.body, DelManuID: req.user.manuId });
+    const DelID = await generateId('DEL', 'Delivery');
+    const delivery = await Delivery.create({ ...req.body, DelID, DelManuID: req.user.manuId });
     res.status(201).json(delivery);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -14,9 +16,13 @@ const createDelivery = async (req, res) => {
 const getDeliveries = async (req, res) => {
   try {
     const filter = { DelManuID: req.user.manuId };
-    // Drivers see only their own deliveries
     if (req.user.role === 'driver') filter.DelUserID = req.user.id;
-    const deliveries = await Delivery.find(filter).sort({ CreatedAt: -1 });
+    const deliveries = await Delivery.find(filter)
+      .populate('DelTruckID', 'TruckID')
+      .populate('DelUserID', 'UserName')
+      .populate('DelRetID', 'RetName')
+      .populate('DelIMID', 'IMID')
+      .sort({ CreatedAt: -1 });
     res.json(deliveries);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -26,7 +32,12 @@ const getDeliveries = async (req, res) => {
 // GET /api/deliveries/:id
 const getDeliveryById = async (req, res) => {
   try {
-    const delivery = await Delivery.findOne({ DelID: req.params.id });
+    const delivery = await Delivery.findById(req.params.id)
+      .populate('DelTruckID')
+      .populate('DelUserID', '-Password')
+      .populate('DelRetID')
+      .populate('DelIMID')
+      .populate('DelBatchID');
     if (!delivery) return res.status(404).json({ message: 'Delivery not found.' });
     res.json(delivery);
   } catch (err) {
@@ -44,11 +55,12 @@ const updateDeliveryStatus = async (req, res) => {
     else if (['unloading', 'delivered'].includes(eventType)) status = 'Complete';
     else return res.status(400).json({ message: 'Invalid event type.' });
 
-    const delivery = await Delivery.findOneAndUpdate(
-      { DelID: req.params.id },
+    const delivery = await Delivery.findByIdAndUpdate(
+      req.params.id,
       { Status: status },
       { new: true }
     );
+    if (!delivery) return res.status(404).json({ message: 'Delivery not found.' });
     res.json(delivery);
   } catch (err) {
     res.status(500).json({ message: err.message });

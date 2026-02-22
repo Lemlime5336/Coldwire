@@ -1,15 +1,15 @@
 const mongoose = require('mongoose');
 
 const deliverySchema = new mongoose.Schema({
-  DelID:     { type: String, required: true, unique: true },
-  DelManuID: { type: String, required: true }, // FK → Manufacturer
-  DelTruckID:{ type: String, required: true }, // FK → Truck
-  DelUserID: { type: String, required: true }, // FK → User (driver)
-  DelRetID:  { type: String, required: true }, // FK → Retailer
-  DelIMID:   { type: String, required: true }, // FK → IoTModule
-  DelBatchID:{ type: [String], default: [] },  // FK array → Batch
-  Status:    { type: String, enum: ['Not Started', 'In Progress', 'Complete'], default: 'Not Started' },
-  CreatedAt: { type: Date, default: Date.now },
+  DelID:      { type: String, required: true, unique: true },
+  DelManuID:  { type: mongoose.Schema.Types.ObjectId, ref: 'Manufacturer', required: true },
+  DelTruckID: { type: mongoose.Schema.Types.ObjectId, ref: 'Truck', required: true },
+  DelUserID:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  DelRetID:   { type: mongoose.Schema.Types.ObjectId, ref: 'Retailer', required: true },
+  DelIMID:    { type: mongoose.Schema.Types.ObjectId, ref: 'IoTModule', required: true },
+  DelBatchID: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Batch' }],
+  Status:     { type: String, enum: ['Not Started', 'In Progress', 'Complete'], default: 'Not Started' },
+  CreatedAt:  { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model('Delivery', deliverySchema);

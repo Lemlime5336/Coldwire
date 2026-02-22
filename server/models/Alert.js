@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const alertSchema = new mongoose.Schema({
   AlertID:      { type: String, required: true, unique: true },
-  AIMID:        { type: String, required: true }, // FK → IoTModule
-  ADelID:       { type: String, required: true }, // FK → Delivery
+  AIMID:        { type: mongoose.Schema.Types.ObjectId, ref: 'IoTModule', required: true },
+  ADelID:       { type: mongoose.Schema.Types.ObjectId, ref: 'Delivery', required: true },
   AlertType:    { type: String, enum: ['temperature', 'humidity', 'gas', 'no data', 'signal drop'], required: true },
   AlertMessage: { type: String },
   Priority:     { type: String, enum: ['Low', 'Medium', 'High'], default: 'Low' },

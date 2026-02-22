@@ -1,16 +1,15 @@
 const mqtt = require('mqtt');
-const { v4: uuidv4 } = require('uuid');
-
+const generateId = require('../utils/generateId');
+const IoTModule = require('../models/IoTModule');
 const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 const DeliveryEvent = require('../models/DeliveryEvent');
 const Delivery = require('../models/Delivery');
 const Alert = require('../models/Alert');
 
-// Thresholds for alerts
 const THRESHOLDS = {
-  temperature: { min: 0, max: 4 },   // °C (cold chain)
-  humidity:    { min: 20, max: 90 },  // %
-  gas:         { max: 500 },          // ppm
+  temperature: { min: 0, max: 4 },
+  humidity:    { min: 20, max: 90 },
+  gas:         { max: 500 },
 };
 
 const client = mqtt.connect(`mqtts://${process.env.MQTT_HOST}`, {
@@ -27,19 +26,42 @@ client.on('connect', () => {
 
 client.on('error', (err) => console.error('MQTT error:', err.message));
 
-// Derive active delivery ID from IoT module ID
-async function getActiveDeliveryId(imid) {
-  const delivery = await Delivery.findOne({ DelIMID: imid, Status: { $ne: 'Complete' } })
-    .sort({ CreatedAt: -1 });
-  return delivery ? delivery.DelID : null;
+// Returns { moduleObjectId, deliveryObjectId } or null
+async function getActiveContext(imidString) {
+  const module = await IoTModule.findOne({ IMID: imidString, IsActive: true });
+  if (!module) return null;
+
+  const delivery = await Delivery.findOne({
+    DelIMID: module._id,
+    Status: { $ne: 'Complete' },
+  }).sort({ CreatedAt: -1 });
+
+  if (!delivery) return null;
+
+  return { moduleObjectId: module._id, deliveryObjectId: delivery._id };
 }
 
-async function raiseAlert({ imid, deliveryId, type, message, priority }) {
+async function raiseAlert({ moduleObjectId, deliveryObjectId, type, message, priority }) {
   try {
+    // Dedup — skip if unresolved alert of same type already exists for this delivery
+    const existing = await Alert.findOne({
+      AIMID: moduleObjectId,
+      ADelID: deliveryObjectId,
+      AlertType: type,
+      Resolved: false,
+    });
+
+    if (existing) {
+      existing.LastUpdate = new Date();
+      await existing.save();
+      return;
+    }
+
+    const AlertID = await generateId('ALT', 'Alert');
     await Alert.create({
-      AlertID: uuidv4(),
-      AIMID: imid,
-      ADelID: deliveryId,
+      AlertID,
+      AIMID: moduleObjectId,
+      ADelID: deliveryObjectId,
       AlertType: type,
       AlertMessage: message,
       Priority: priority,
@@ -53,24 +75,26 @@ async function raiseAlert({ imid, deliveryId, type, message, priority }) {
 client.on('message', async (topic, payload) => {
   try {
     const parts = topic.split('/');
-    // topic format: coldwire/<ManuID>/<IMID>/<type>
-    const imid = parts[2];
+    const imidString = parts[2];
     const msgType = parts[3];
     const data = JSON.parse(payload.toString());
 
-    const deliveryId = await getActiveDeliveryId(imid);
-    if (!deliveryId) {
-      console.warn(`No active delivery for module ${imid}. Discarding message.`);
+    const context = await getActiveContext(imidString);
+    if (!context) {
+      console.warn(`No active delivery for module ${imidString}. Discarding message.`);
       return;
     }
+
+    const { moduleObjectId, deliveryObjectId } = context;
 
     if (msgType === 'environmental_logs') {
       const { temperature, humidity, gas, latitude, longitude, timestamp } = data;
 
+      const ELogID = await generateId('ELOG', 'EnvironmentalSensing');
       await EnvironmentalSensing.create({
-        ELogID:      uuidv4(),
-        EDelID:      deliveryId,
-        EIMID:       imid,
+        ELogID,
+        EDelID:      deliveryObjectId,
+        EIMID:       moduleObjectId,
         Temperature: temperature,
         Humidity:    humidity,
         Gas:         gas,
@@ -79,26 +103,27 @@ client.on('message', async (topic, payload) => {
         Timestamp:   timestamp ? new Date(timestamp) : new Date(),
       });
 
-      // Check thresholds and raise alerts if needed
       if (temperature < THRESHOLDS.temperature.min || temperature > THRESHOLDS.temperature.max) {
         await raiseAlert({
-          imid, deliveryId,
+          moduleObjectId, deliveryObjectId,
           type: 'temperature',
           message: `Temperature out of range: ${temperature}°C`,
           priority: 'High',
         });
       }
+
       if (humidity < THRESHOLDS.humidity.min || humidity > THRESHOLDS.humidity.max) {
         await raiseAlert({
-          imid, deliveryId,
+          moduleObjectId, deliveryObjectId,
           type: 'humidity',
           message: `Humidity out of range: ${humidity}%`,
           priority: 'Medium',
         });
       }
+
       if (gas > THRESHOLDS.gas.max) {
         await raiseAlert({
-          imid, deliveryId,
+          moduleObjectId, deliveryObjectId,
           type: 'gas',
           message: `Gas level elevated: ${gas} ppm`,
           priority: 'High',
@@ -107,9 +132,8 @@ client.on('message', async (topic, payload) => {
     }
 
     if (msgType === 'batch_delivery_events') {
-      const { rfid_tag, batch_id, status, timestamp } = data;
+      const { rfid_tag, status, timestamp } = data;
 
-      // Map incoming status to DeliveryEvent EventType enum
       const eventTypeMap = {
         'awaiting pickup': 'awaiting pickup',
         'loading':         'loading',
@@ -117,28 +141,29 @@ client.on('message', async (topic, payload) => {
         'unloading':       'unloading',
         'delivered':       'delivered',
       };
+
       const eventType = eventTypeMap[status];
       if (!eventType) {
         console.warn(`Unknown event status: ${status}`);
         return;
       }
 
+      const DEvID = await generateId('DEV', 'DeliveryEvent');
       await DeliveryEvent.create({
-        DEvID:     uuidv4(),
-        DEvDelID:  deliveryId,
+        DEvID,
+        DEvDelID:  deliveryObjectId,
         EventType: eventType,
         Source:    rfid_tag ? 'rfid' : 'system',
         CreatedAt: timestamp ? new Date(timestamp) : new Date(),
       });
 
-      // Update delivery status
       let deliveryStatus;
       if (['awaiting pickup', 'loading'].includes(eventType)) deliveryStatus = 'Not Started';
       else if (eventType === 'en route') deliveryStatus = 'In Progress';
       else if (['unloading', 'delivered'].includes(eventType)) deliveryStatus = 'Complete';
 
       if (deliveryStatus) {
-        await Delivery.findOneAndUpdate({ DelID: deliveryId }, { Status: deliveryStatus });
+        await Delivery.findByIdAndUpdate(deliveryObjectId, { Status: deliveryStatus });
       }
     }
   } catch (err) {

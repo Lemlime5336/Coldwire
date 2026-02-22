@@ -1,10 +1,11 @@
 const Alert = require('../models/Alert');
+const mongoose = require('mongoose');
 
-// GET /api/alerts — all alerts for this manufacturer's deliveries
+// GET /api/alerts
 const getAlerts = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.deliveryId) filter.ADelID = req.query.deliveryId;
+    if (req.query.deliveryId) filter.ADelID = new mongoose.Types.ObjectId(req.query.deliveryId);
     const alerts = await Alert.find(filter).sort({ LastUpdate: -1 });
     res.json(alerts);
   } catch (err) {
@@ -15,8 +16,8 @@ const getAlerts = async (req, res) => {
 // PATCH /api/alerts/:id/resolve
 const resolveAlert = async (req, res) => {
   try {
-    const alert = await Alert.findOneAndUpdate(
-      { AlertID: req.params.id },
+    const alert = await Alert.findByIdAndUpdate(
+      req.params.id,
       { Resolved: true, LastUpdate: new Date() },
       { new: true }
     );
@@ -31,7 +32,7 @@ const resolveAlert = async (req, res) => {
 const getUnresolvedAlerts = async (req, res) => {
   try {
     const filter = { Resolved: false };
-    if (req.query.deliveryId) filter.ADelID = req.query.deliveryId;
+    if (req.query.deliveryId) filter.ADelID = new mongoose.Types.ObjectId(req.query.deliveryId);
     const alerts = await Alert.find(filter).sort({ Priority: -1, LastUpdate: -1 });
     res.json(alerts);
   } catch (err) {

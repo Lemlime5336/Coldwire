@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const deliveryEventSchema = new mongoose.Schema({
   DEvID:     { type: String, required: true, unique: true },
-  DEvDelID:  { type: String, required: true }, // FK → Delivery
+  DEvDelID:  { type: mongoose.Schema.Types.ObjectId, ref: 'Delivery', required: true },
   EventType: {
     type: String,
     enum: ['awaiting pickup', 'loading', 'en route', 'unloading', 'delivered'],

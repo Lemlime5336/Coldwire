@@ -1,15 +1,19 @@
 const Batch = require('../models/Batch');
 const Delivery = require('../models/Delivery');
+const generateId = require('../utils/generateId');
 
 // POST /api/batches
 const createBatch = async (req, res) => {
   try {
-    const batch = await Batch.create(req.body);
-    // Add batch ID to the delivery's DelBatchID array
-    await Delivery.findOneAndUpdate(
-      { DelID: batch.BDelID },
-      { $addToSet: { DelBatchID: batch.BatchID } }
+    const BatchID = await generateId('BATCH', 'Batch');
+    const batch = await Batch.create({ ...req.body, BatchID });
+
+    // Add batch _id to the delivery's DelBatchID array
+    await Delivery.findByIdAndUpdate(
+      batch.BDelID,
+      { $addToSet: { DelBatchID: batch._id } }
     );
+
     res.status(201).json(batch);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -19,7 +23,7 @@ const createBatch = async (req, res) => {
 // GET /api/batches/:deliveryId
 const getBatchesByDelivery = async (req, res) => {
   try {
-    const batches = await Batch.find({ BDelID: req.params.deliveryId });
+    const batches = await Batch.find({ BDelID: req.params.deliveryId }).populate('BCertID');
     res.json(batches);
   } catch (err) {
     res.status(500).json({ message: err.message });
