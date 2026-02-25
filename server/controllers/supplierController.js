@@ -1,9 +1,10 @@
 const Supplier = require('../models/Supplier');
 const generateId = require('../utils/generateId');
+const mongoose = require('mongoose');
 
 const getSuppliers = async (req, res) => {
   try {
-    const suppliers = await Supplier.find({ SuppManuID: req.user.manuId });
+    const suppliers = await Supplier.find({ SuppManuID: new mongoose.Types.ObjectId(req.user.manuId) });
     res.json(suppliers);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -13,7 +14,11 @@ const getSuppliers = async (req, res) => {
 const createSupplier = async (req, res) => {
   try {
     const SuppID = await generateId('SUPP', 'Supplier');
-    const supplier = await Supplier.create({ ...req.body, SuppID, SuppManuID: req.user.manuId });
+    const supplier = await Supplier.create({
+      ...req.body,
+      SuppID,
+      SuppManuID: new mongoose.Types.ObjectId(req.user.manuId),
+    });
     res.status(201).json(supplier);
   } catch (err) {
     res.status(500).json({ message: err.message });
