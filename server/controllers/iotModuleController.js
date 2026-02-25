@@ -3,7 +3,7 @@ const generateId = require('../utils/generateId');
 
 const getModules = async (req, res) => {
   try {
-    const modules = await IoTModule.find();
+    const modules = await IoTModule.find();  // no manuId filter — correct per schema
     res.json(modules);
   } catch (err) {
     res.status(500).json({ message: err.message });
