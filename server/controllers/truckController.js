@@ -1,9 +1,10 @@
 const Truck = require('../models/Truck');
 const generateId = require('../utils/generateId');
+const mongoose = require('mongoose');
 
 const getTrucks = async (req, res) => {
   try {
-    const trucks = await Truck.find({ TrManuID: req.user.manuId });
+    const trucks = await Truck.find({ TrManuID: new mongoose.Types.ObjectId(req.user.manuId) });
     res.json(trucks);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -13,7 +14,11 @@ const getTrucks = async (req, res) => {
 const createTruck = async (req, res) => {
   try {
     const TruckID = await generateId('TRK', 'Truck');
-    const truck = await Truck.create({ ...req.body, TruckID, TrManuID: req.user.manuId });
+    const truck = await Truck.create({
+      ...req.body,
+      TruckID,
+      TrManuID: new mongoose.Types.ObjectId(req.user.manuId),
+    });
     res.status(201).json(truck);
   } catch (err) {
     res.status(500).json({ message: err.message });
