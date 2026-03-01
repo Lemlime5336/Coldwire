@@ -2,16 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./configs/db');
-
 const app = express();
-
 // Connect to MongoDB
 connectDB();
-
 // Middleware
 app.use(cors());
 app.use(express.json());
-
 // Routes
 app.use('/api/auth',         require('./routes/authRoutes'));
 app.use('/api/users',        require('./routes/userRoutes'));
@@ -29,9 +25,8 @@ app.use('/api/camera',       require('./routes/cameraRoutes'));
 app.use('/api/alerts',       require('./routes/alertRoutes'));
 app.use('/api/reports',      require('./routes/reportRoutes'));
 app.use('/api/products',     require('./routes/productRoutes'));
-
+app.use('/api/rfid-tags',    require('./routes/rfidTagRoutes'));  
 // Start MQTT client
 require('./mqtt');
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`ColdWire server running on port ${PORT}`));

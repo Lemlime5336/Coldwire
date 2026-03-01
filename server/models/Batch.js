@@ -10,6 +10,7 @@ const batchSchema = new mongoose.Schema({
   DateReceived:    { type: Date },
   Quantity:        { type: Number },
   ImageURL:        { type: String },
+  RFIDTag:         { type: String, unique: true, sparse: true },  // ← added
 });
 
 module.exports = mongoose.model('Batch', batchSchema);

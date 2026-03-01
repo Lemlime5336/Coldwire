@@ -5,6 +5,7 @@ const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 const DeliveryEvent = require('../models/DeliveryEvent');
 const Delivery = require('../models/Delivery');
 const Alert = require('../models/Alert');
+const { getBatchByRFID } = require('../controllers/batchController');  // ← added
 
 const THRESHOLDS = {
   temperature: { min: 0, max: 4 },
@@ -22,6 +23,7 @@ client.on('connect', () => {
   console.log('MQTT connected.');
   client.subscribe('coldwire/+/+/environmental_logs');
   client.subscribe('coldwire/+/+/batch_delivery_events');
+  client.subscribe('coldwire/+/+/rfid_scan');  // ← added
 });
 
 client.on('error', (err) => console.error('MQTT error:', err.message));
@@ -38,12 +40,11 @@ async function getActiveContext(imidString) {
 
   if (!delivery) return null;
 
-  return { moduleObjectId: module._id, deliveryObjectId: delivery._id };
+  return { moduleObjectId: module._id, deliveryObjectId: delivery._id, delivery };
 }
 
 async function raiseAlert({ moduleObjectId, deliveryObjectId, type, message, priority }) {
   try {
-    // Dedup — skip if unresolved alert of same type already exists for this delivery
     const existing = await Alert.findOne({
       AIMID: moduleObjectId,
       ADelID: deliveryObjectId,
@@ -85,7 +86,7 @@ client.on('message', async (topic, payload) => {
       return;
     }
 
-    const { moduleObjectId, deliveryObjectId } = context;
+    const { moduleObjectId, deliveryObjectId, delivery } = context;
 
     if (msgType === 'environmental_logs') {
       const { temperature, humidity, gas, latitude, longitude, timestamp } = data;
@@ -166,6 +167,52 @@ client.on('message', async (topic, payload) => {
         await Delivery.findByIdAndUpdate(deliveryObjectId, { Status: deliveryStatus });
       }
     }
+
+    // ← added: handle batch RFID scans
+    if (msgType === 'rfid_scan') {
+      const { uid, timestamp } = data;
+
+      if (!uid) {
+        console.warn('rfid_scan received with no UID, discarding.');
+        return;
+      }
+
+      // Look up batch by scanned UID
+      const batch = await getBatchByRFID(uid);
+
+      if (!batch) {
+        // UID not registered to any batch
+        await raiseAlert({
+          moduleObjectId, deliveryObjectId,
+          type: 'batch mismatch',
+          message: `Unregistered RFID tag scanned: ${uid}`,
+          priority: 'High',
+        });
+        console.warn(`Unregistered RFID tag scanned: ${uid}`);
+        return;
+      }
+
+      // Check the batch belongs to this delivery
+      const batchBelongsToDelivery = delivery.DelBatchID.some(
+        id => id.toString() === batch._id.toString()
+      );
+
+      if (!batchBelongsToDelivery) {
+        // Batch exists but belongs to a different delivery
+        await raiseAlert({
+          moduleObjectId, deliveryObjectId,
+          type: 'batch mismatch',
+          message: `Batch ${batch.BatchID} (tag: ${uid}) does not belong to this delivery.`,
+          priority: 'High',
+        });
+        console.warn(`Batch ${batch.BatchID} scanned on wrong delivery.`);
+        return;
+      }
+
+      // All good — log the scan
+      console.log(`Batch ${batch.BatchID} confirmed on delivery at ${timestamp || new Date().toISOString()}`);
+    }
+
   } catch (err) {
     console.error('MQTT message handling error:', err.message);
   }
