@@ -5,7 +5,7 @@ const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 const DeliveryEvent = require('../models/DeliveryEvent');
 const Delivery = require('../models/Delivery');
 const Alert = require('../models/Alert');
-const { getBatchByRFID } = require('../controllers/batchController');  // ← added
+const { getBatchByRFID } = require('../controllers/batchController');
 
 const THRESHOLDS = {
   temperature: { min: 0, max: 4 },
@@ -23,12 +23,11 @@ client.on('connect', () => {
   console.log('MQTT connected.');
   client.subscribe('coldwire/+/+/environmental_logs');
   client.subscribe('coldwire/+/+/batch_delivery_events');
-  client.subscribe('coldwire/+/+/rfid_scan');  // ← added
 });
 
 client.on('error', (err) => console.error('MQTT error:', err.message));
 
-// Returns { moduleObjectId, deliveryObjectId } or null
+// Returns { moduleObjectId, deliveryObjectId, delivery } or null
 async function getActiveContext(imidString) {
   const module = await IoTModule.findOne({ IMID: imidString, IsActive: true });
   if (!module) return null;
@@ -166,51 +165,37 @@ client.on('message', async (topic, payload) => {
       if (deliveryStatus) {
         await Delivery.findByIdAndUpdate(deliveryObjectId, { Status: deliveryStatus });
       }
-    }
 
-    // ← added: handle batch RFID scans
-    if (msgType === 'rfid_scan') {
-      const { uid, timestamp } = data;
+      // Batch verification — only if an RFID tag was included in the event
+      if (rfid_tag) {
+        const batch = await getBatchByRFID(rfid_tag);
 
-      if (!uid) {
-        console.warn('rfid_scan received with no UID, discarding.');
-        return;
+        if (!batch) {
+          await raiseAlert({
+            moduleObjectId, deliveryObjectId,
+            type: 'batch mismatch',
+            message: `Unregistered RFID tag scanned: ${rfid_tag}`,
+            priority: 'High',
+          });
+          console.warn(`Unregistered RFID tag scanned: ${rfid_tag}`);
+        } else {
+          const batchBelongsToDelivery = delivery.DelBatchID.some(
+            id => id.toString() === batch._id.toString()
+          );
+
+          if (!batchBelongsToDelivery) {
+            await raiseAlert({
+              moduleObjectId, deliveryObjectId,
+              type: 'batch mismatch',
+              message: `Batch ${batch.BatchID} (tag: ${rfid_tag}) does not belong to this delivery.`,
+              priority: 'High',
+            });
+            console.warn(`Batch ${batch.BatchID} scanned on wrong delivery.`);
+          } else {
+            console.log(`Batch ${batch.BatchID} confirmed on delivery.`);
+          }
+        }
       }
-
-      // Look up batch by scanned UID
-      const batch = await getBatchByRFID(uid);
-
-      if (!batch) {
-        // UID not registered to any batch
-        await raiseAlert({
-          moduleObjectId, deliveryObjectId,
-          type: 'batch mismatch',
-          message: `Unregistered RFID tag scanned: ${uid}`,
-          priority: 'High',
-        });
-        console.warn(`Unregistered RFID tag scanned: ${uid}`);
-        return;
-      }
-
-      // Check the batch belongs to this delivery
-      const batchBelongsToDelivery = delivery.DelBatchID.some(
-        id => id.toString() === batch._id.toString()
-      );
-
-      if (!batchBelongsToDelivery) {
-        // Batch exists but belongs to a different delivery
-        await raiseAlert({
-          moduleObjectId, deliveryObjectId,
-          type: 'batch mismatch',
-          message: `Batch ${batch.BatchID} (tag: ${uid}) does not belong to this delivery.`,
-          priority: 'High',
-        });
-        console.warn(`Batch ${batch.BatchID} scanned on wrong delivery.`);
-        return;
-      }
-
-      // All good — log the scan
-      console.log(`Batch ${batch.BatchID} confirmed on delivery at ${timestamp || new Date().toISOString()}`);
     }
 
   } catch (err) {

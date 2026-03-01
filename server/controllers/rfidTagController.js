@@ -5,7 +5,10 @@ const generateId = require('../utils/generateId');
 const getTags = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.available === 'true') filter.InUse = false;
+    if (req.query.available === 'true') {
+      filter.InUse = false;
+      filter.IsActive = true;
+    }
     const tags = await RFIDTag.find(filter).sort({ TagID: 1 });
     res.json(tags);
   } catch (err) {

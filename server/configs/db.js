@@ -8,14 +8,14 @@ const connectDB = async () => {
     const db = mongoose.connection.db;
 
     // Environmental logs indexes
-    await db.collection('environment_logs').createIndex({ delivery_id: 1 });
-    await db.collection('environment_logs').createIndex({ truck_id: 1, timestamp: -1 });
-    await db.collection('environment_logs').createIndex({ iot_module_id: 1 });
+    await db.collection('environmentalsensings').createIndex({ delivery_id: 1 });
+    await db.collection('environmentalsensings').createIndex({ truck_id: 1, timestamp: -1 });
+    await db.collection('environmentalsensings').createIndex({ iot_module_id: 1 });
 
     // Delivery events indexes
-    await db.collection('delivery_events').createIndex({ delivery_id: 1, timestamp: 1 });
-    await db.collection('delivery_events').createIndex({ truck_id: 1, timestamp: -1 });
-    await db.collection('delivery_events').createIndex({ event_type: 1 });
+    await db.collection('deliveryevents').createIndex({ delivery_id: 1, timestamp: 1 });
+    await db.collection('deliveryevents').createIndex({ truck_id: 1, timestamp: -1 });
+    await db.collection('deliveryevents').createIndex({ event_type: 1 });
 
     // Deliveries indexes
     await db.collection('deliveries').createIndex({ manufacturer_id: 1, status: 1 });

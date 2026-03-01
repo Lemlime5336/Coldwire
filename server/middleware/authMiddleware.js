@@ -23,32 +23,4 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-const login = async (req, res) => {
-  try {
-    console.log('1. req.body:', req.body);                          // ← add
-
-    const { UserEmail, Password } = req.body;
-    const user = await User.findOne({ UserEmail });
-
-    console.log('2. user found:', user ? user.UserEmail : 'NULL'); // ← add
-    console.log('3. IsActive:', user?.IsActive);                   // ← add
-
-    if (!user || !user.IsActive) return res.status(401).json({ message: 'Invalid credentials or account inactive.' });
-
-    const match = await bcrypt.compare(Password, user.Password);
-    console.log('4. password match:', match);                      // ← add
-
-    if (!match) return res.status(401).json({ message: 'Invalid credentials.' });
-
-    const token = generateToken(user);
-    res.json({
-      token,
-      user: { id: user.UserID, name: user.UserName, role: user.Role, manuId: user.UserManuID },
-    });
-  } catch (err) {
-    console.log('5. ERROR:', err.message);                         // ← add
-    res.status(500).json({ message: err.message });
-  }
-};
-
 module.exports = { protect, adminOnly };

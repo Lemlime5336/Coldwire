@@ -12,6 +12,7 @@ const generateToken = (user) =>
 
 // POST /api/auth/register  (admin only — creates driver accounts)
 const register = async (req, res) => {
+  console.log('req.user:', req.user);
   try {
     const { UserName, UserEmail, Password, Role } = req.body;
 
@@ -22,7 +23,7 @@ const register = async (req, res) => {
     const UserID = await generateId('USR', 'User');
     const user = await User.create({
       UserID,
-      UserManuID: req.user.UserManuID,
+      UserManuID: req.user.manuId,
       UserName,
       UserEmail,
       Password: hashed,
