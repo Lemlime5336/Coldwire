@@ -1,19 +1,36 @@
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 
-// Store in memory — files are passed to Supabase Storage from buffer
-const storage = multer.memoryStorage();
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (allowed.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, and PDF files are allowed.'));
-    }
-  },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-module.exports = upload;
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: (req, file) => ({
+    folder:        'coldwire/certificates',
+    resource_type: 'auto',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
+    transformation: file.mimetype.startsWith('image/')
+      ? [{ quality: 'auto', fetch_format: 'auto' }]
+      : undefined,
+  }),
+});
+
+const fileFilter = (req, file, cb) => {
+  const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only JPEG, PNG, and PDF files are allowed.'));
+  }
+};
+
+module.exports = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter,
+});

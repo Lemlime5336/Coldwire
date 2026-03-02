@@ -1,28 +1,43 @@
 const HalalCertificate = require('../models/HalalCertificate');
 const generateId = require('../utils/generateId');
 
-// POST /api/halal-certificates
-const uploadCertificate = async (req, res) => {
+// GET /api/certificates
+const getCertificates = async (req, res) => {
   try {
-    const CertID = await generateId('CERT', 'HalalCertificate');
-    const cert = await HalalCertificate.create({ ...req.body, CertID });
-    res.status(201).json(cert);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// GET /api/halal-certificates/supplier/:suppId
-const getCertificatesBySupplier = async (req, res) => {
-  try {
-    const certs = await HalalCertificate.find({ CertSuppID: req.params.suppId });
+    const certs = await HalalCertificate.find().populate('CertSuppID', 'SuppName');
     res.json(certs);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// GET /api/halal-certificates/expired
+// POST /api/certificates
+const uploadCertificate = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded.' });
+    const CertID = await generateId('CERT', 'HalalCertificate');
+    const cert = await HalalCertificate.create({
+      ...req.body,
+      CertID,
+      CertURL: req.file.path,
+    });
+    res.status(201).json(cert);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/certificates/supplier/:suppId
+const getCertificatesBySupplier = async (req, res) => {
+  try {
+    const certs = await HalalCertificate.find({ CertSuppID: req.params.suppId }).populate('CertSuppID', 'SuppName');
+    res.json(certs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/certificates/expired
 const checkExpiredCertificates = async (req, res) => {
   try {
     const soon = new Date();
@@ -34,4 +49,4 @@ const checkExpiredCertificates = async (req, res) => {
   }
 };
 
-module.exports = { uploadCertificate, getCertificatesBySupplier, checkExpiredCertificates };
+module.exports = { getCertificates, uploadCertificate, getCertificatesBySupplier, checkExpiredCertificates };
