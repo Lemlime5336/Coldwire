@@ -43,8 +43,8 @@ const char* mqtt_user = MQTT_USER;
 const char* mqtt_pass = MQTT_PASS;
 
 //  MQTT TOPICS 
-const char* topic_sensors = "coldwire/M001/IM001/environmental_logs";
-const char* topic_bde = "coldwire/M001/IM001/batch_delivery_events";
+const char* topic_sensors = "coldwire/MANU-00001/IM-001/environmental_logs";
+const char* topic_bde = "coldwire/MANU-00001/IM-001/batch_delivery_events";
 
 //  MQTT CLIENT 
 WiFiClientSecure secureClient;
@@ -178,7 +178,7 @@ void publishSensors(float temp, float hum, int air) {
   String payload = "{";
   payload += "\"temperature\":" + String(temp) + ",";
   payload += "\"humidity\":" + String(hum) + ",";
-  payload += "\"air_quality\":" + String(air) + ",";
+  payload += "\"gas\":" + String(air) + ",";
 
   if (gps_valid) {
     payload += "\"latitude\":" + String(gps_lat, 6) + ",";
@@ -237,7 +237,6 @@ void publishRFID(String tag, String status) {
 
   String payload = "{";
   payload += "\"rfid_tag\":\"" + tag + "\",";
-  payload += "\"batch_id\":\"BATCH123\",";
   payload += "\"status\":\"" + status + "\",";
   payload += "\"timestamp\":\"" + String(timestamp) + "\"";
   payload += "}";
@@ -245,4 +244,3 @@ void publishRFID(String tag, String status) {
   client.publish(topic_bde, payload.c_str());
   Serial.println("RFID payload: " + payload);
 }
-
