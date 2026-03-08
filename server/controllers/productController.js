@@ -3,14 +3,18 @@ const Supplier = require('../models/Supplier');
 const Manufacturer = require('../models/Manufacturer');
 const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 
-// GET /api/batches/public/:batchId  — public, no auth (QR scan lands here)
-// Note: this is also registered in productRoutes for legacy /api/products/:productId compat
+// GET /api/products/:batchId — public, no auth (QR scan lands here)
 const getBatchByQR = async (req, res) => {
   try {
-    const batch = await Batch.findOne({ BatchID: req.params.batchId }).populate({
-      path: 'BCertID BDelID',
-      populate: { path: 'DelRetID DelTruckID' },
-    });
+    const batch = await Batch.findOne({ BatchID: req.params.batchId })
+      .populate('BCertID')
+      .populate({
+        path: 'BDelID',
+        populate: [
+          { path: 'DelRetID' },
+          { path: 'DelTruckID' },
+        ],
+      });
 
     if (!batch) return res.status(404).json({ message: 'Batch not found.' });
 
@@ -25,7 +29,6 @@ const getBatchByQR = async (req, res) => {
       ? await Manufacturer.findById(delivery.DelManuID)
       : null;
 
-    // Sensor summary for this delivery
     let sensorSummary = null;
     if (delivery) {
       const logs = await EnvironmentalSensing.find({ EDelID: delivery._id });
