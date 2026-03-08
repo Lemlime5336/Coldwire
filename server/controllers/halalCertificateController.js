@@ -4,7 +4,9 @@ const generateId = require('../utils/generateId');
 // GET /api/certificates
 const getCertificates = async (req, res) => {
   try {
-    const certs = await HalalCertificate.find().populate('CertSuppID', 'SuppName');
+    const filter = {};
+    if (req.query.suppId) filter.CertSuppID = req.query.suppId;
+    const certs = await HalalCertificate.find(filter).populate('CertSuppID', 'SuppName');
     res.json(certs);
   } catch (err) {
     res.status(500).json({ message: err.message });

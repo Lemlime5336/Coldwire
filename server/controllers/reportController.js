@@ -22,27 +22,35 @@ const generateDeliveryReport = async (req, res) => {
       Alert.find({ ADelID: delivery._id }),
     ]);
 
-    const temps  = sensorLogs.map((l) => l.Temperature).filter((v) => v != null);
-    const hums   = sensorLogs.map((l) => l.Humidity).filter((v) => v != null);
-    const gases  = sensorLogs.map((l) => l.Gas).filter((v) => v != null);
+    const temps = sensorLogs.map(l => l.Temperature).filter(v => v != null);
+    const hums  = sensorLogs.map(l => l.Humidity).filter(v => v != null);
+    const gases = sensorLogs.map(l => l.Gas).filter(v => v != null);
 
-    const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
-    const min = (arr) => arr.length ? Math.min(...arr) : null;
-    const max = (arr) => arr.length ? Math.max(...arr) : null;
+    const avg = arr => arr.length ? parseFloat((arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2)) : null;
+    const min = arr => arr.length ? Math.min(...arr) : null;
+    const max = arr => arr.length ? Math.max(...arr) : null;
+
+    // Threshold breach count is StorageType-aware
+    const isFrozen = delivery.StorageType === 'Frozen';
+    const tempBreaches = isFrozen
+      ? temps.filter(t => t > -18).length
+      : temps.filter(t => t > 4 || t < 0).length;
 
     res.json({
       delivery,
       batches,
       events,
+      sensorLogs,
       sensorSummary: {
         temperature:   { avg: avg(temps), min: min(temps), max: max(temps) },
         humidity:      { avg: avg(hums),  min: min(hums),  max: max(hums)  },
         gas:           { avg: avg(gases), min: min(gases), max: max(gases) },
         totalReadings: sensorLogs.length,
+        tempBreaches,
       },
       alerts: {
         total:      alerts.length,
-        unresolved: alerts.filter((a) => !a.Resolved).length,
+        unresolved: alerts.filter(a => !a.Resolved).length,
         byType:     alerts.reduce((acc, a) => {
           acc[a.AlertType] = (acc[a.AlertType] || 0) + 1;
           return acc;

@@ -2,6 +2,8 @@ const Batch = require('../models/Batch');
 const Delivery = require('../models/Delivery');
 const RFIDTag = require('../models/RFIDTag');
 const generateId = require('../utils/generateId');
+const QRCode = require('qrcode');
+const cloudinary = require('cloudinary').v2;
 
 // POST /api/batches
 const createBatch = async (req, res) => {
@@ -41,9 +43,53 @@ const getBatchesByDelivery = async (req, res) => {
   }
 };
 
+// POST /api/batches/:batchId/qr  — generate one QR for the whole batch, save to ImageURL
+// All items in a batch share the same info so one QR is sufficient.
+// Re-calling this overwrites the existing QR.
+const generateBatchQR = async (req, res) => {
+  try {
+    const batch = await Batch.findById(req.params.batchId).populate('BDelID BCertID');
+    if (!batch) return res.status(404).json({ message: 'Batch not found.' });
+
+    const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
+    // QR encodes a public batch info URL — consumers scan to see halal cert, category, delivery
+    const qrTargetUrl = `${frontendBase}/batch/${batch.BatchID}`;
+
+    // Generate QR PNG buffer
+    const qrBuffer = await QRCode.toBuffer(qrTargetUrl, {
+      type: 'png',
+      width: 400,
+      margin: 2,
+      color: { dark: '#1e3a5f', light: '#ffffff' },
+    });
+
+    // Upload to Cloudinary, overwrite if exists
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'coldwire/qrcodes',
+          public_id: `qr_batch_${batch.BatchID}`,
+          resource_type: 'image',
+          overwrite: true,
+        },
+        (error, result) => (error ? reject(error) : resolve(result))
+      );
+      stream.end(qrBuffer);
+    });
+
+    // Save URL to batch ImageURL
+    batch.ImageURL = uploadResult.secure_url;
+    await batch.save();
+
+    res.json({ message: `QR generated for batch ${batch.BatchID}`, ImageURL: batch.ImageURL, batch });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // Internal use by MQTT — find a batch by its RFID tag UID
 const getBatchByRFID = async (uid) => {
   return await Batch.findOne({ RFIDTag: uid }).populate('BDelID');
 };
 
-module.exports = { createBatch, getBatchesByDelivery, getBatchByRFID };
+module.exports = { createBatch, getBatchesByDelivery, generateBatchQR, getBatchByRFID };

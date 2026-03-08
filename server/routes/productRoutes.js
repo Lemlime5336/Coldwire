@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getProductByQR } = require('../controllers/productController');
+const { getBatchByQR } = require('../controllers/productController');
 
-// Public — no auth middleware
-router.get('/:productId', getProductByQR);
+// Public — QR scan by consumer lands at /batch/:batchId in the frontend
+// This endpoint serves the data for that page
+router.get('/:batchId', getBatchByQR);
 
 module.exports = router;

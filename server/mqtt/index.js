@@ -8,9 +8,8 @@ const Alert = require('../models/Alert');
 const { getBatchByRFID } = require('../controllers/batchController');
 
 const THRESHOLDS = {
-  temperature: { min: 0, max: 4 },
-  humidity:    { min: 20, max: 90 },
-  gas:         { max: 500 },
+  humidity: { min: 20, max: 90 },
+  gas:      { max: 500 },
 };
 
 const client = mqtt.connect(`mqtts://${process.env.MQTT_HOST}`, {
@@ -23,6 +22,10 @@ client.on('connect', () => {
   console.log('MQTT connected.');
   client.subscribe('coldwire/+/+/environmental_logs');
   client.subscribe('coldwire/+/+/batch_delivery_events');
+  // Camera topics
+  client.subscribe('coldwire/+/+/camera_events');
+  client.subscribe('coldwire/+/+/camera_snapshot');
+  client.subscribe('coldwire/+/+/camera_status');
 });
 
 client.on('error', (err) => console.error('MQTT error:', err.message));
@@ -74,9 +77,34 @@ async function raiseAlert({ moduleObjectId, deliveryObjectId, type, message, pri
 
 client.on('message', async (topic, payload) => {
   try {
-    const parts = topic.split('/');
+    const parts      = topic.split('/');
     const imidString = parts[2];
-    const msgType = parts[3];
+    const msgType    = parts[3];
+
+    // ── Camera topics — handled before JSON parse (snapshot is binary) ──
+    if (msgType === 'camera_snapshot') {
+      const camModule = require('../camera');
+      camModule.onCameraSnapshot(imidString, payload);
+      return;
+    }
+
+    if (msgType === 'camera_events') {
+      const camModule = require('../camera');
+      let data;
+      try { data = JSON.parse(payload.toString()); } catch { return; }
+      camModule.onCameraEvent(imidString, data);
+      return;
+    }
+
+    if (msgType === 'camera_status') {
+      const camModule = require('../camera');
+      let data;
+      try { data = JSON.parse(payload.toString()); } catch { return; }
+      camModule.onCameraStatus(imidString, data);
+      return;
+    }
+
+    // ── Sensor / delivery event topics ───────────────────────────────────
     const data = JSON.parse(payload.toString());
 
     const context = await getActiveContext(imidString);
@@ -103,11 +131,19 @@ client.on('message', async (topic, payload) => {
         Timestamp:   timestamp ? new Date(timestamp) : new Date(),
       });
 
-      if (temperature < THRESHOLDS.temperature.min || temperature > THRESHOLDS.temperature.max) {
+      // StorageType-aware temperature threshold
+      const isFrozen = delivery.StorageType === 'Frozen';
+      const tempBreached = isFrozen
+        ? temperature > -18
+        : temperature < 0 || temperature > 4;
+
+      if (tempBreached) {
         await raiseAlert({
           moduleObjectId, deliveryObjectId,
           type: 'temperature',
-          message: `Temperature out of range: ${temperature}°C`,
+          message: isFrozen
+            ? `Temperature above safe frozen range: ${temperature}°C (must be below -18°C)`
+            : `Temperature out of chilled range: ${temperature}°C (safe: 0°C – 4°C)`,
           priority: 'High',
         });
       }
@@ -203,4 +239,10 @@ client.on('message', async (topic, payload) => {
   }
 });
 
-module.exports = client;
+// Used by cameraController to send commands to ESP32-CAM
+function publishCommand(topic, command) {
+  client.publish(topic, command);
+  console.log(`[MQTT] CMD → ${topic}: ${command}`);
+}
+
+module.exports = { client, publishCommand };

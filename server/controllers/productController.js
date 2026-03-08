@@ -1,40 +1,39 @@
-const Product = require('../models/Product');
-const Delivery = require('../models/Delivery');
+const Batch = require('../models/Batch');
+const Supplier = require('../models/Supplier');
+const Manufacturer = require('../models/Manufacturer');
 const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 
-// GET /api/products/:productId  — public, no auth
-const getProductByQR = async (req, res) => {
+// GET /api/batches/public/:batchId  — public, no auth (QR scan lands here)
+// Note: this is also registered in productRoutes for legacy /api/products/:productId compat
+const getBatchByQR = async (req, res) => {
   try {
-    const product = await Product.findOne({ ProductID: req.params.productId })
-      .populate({
-        path: 'PBatchID',
-        populate: { path: 'BCertID BDelID' },
-      });
+    const batch = await Batch.findOne({ BatchID: req.params.batchId }).populate({
+      path: 'BCertID BDelID',
+      populate: { path: 'DelRetID DelTruckID' },
+    });
 
-    if (!product) return res.status(404).json({ message: 'Product not found.' });
+    if (!batch) return res.status(404).json({ message: 'Batch not found.' });
 
-    const batch = product.PBatchID;
-    const delivery = batch?.BDelID;
-    const certificate = batch?.BCertID;
+    const delivery = batch.BDelID;
+    const certificate = batch.BCertID;
 
-    const supplier = certificate
-      ? await certificate.CertSuppID
-        ? require('../models/Supplier').findById(certificate.CertSuppID)
-        : null
+    const supplier = certificate?.CertSuppID
+      ? await Supplier.findById(certificate.CertSuppID)
       : null;
 
     const manufacturer = delivery?.DelManuID
-      ? await require('../models/Manufacturer').findById(delivery.DelManuID)
+      ? await Manufacturer.findById(delivery.DelManuID)
       : null;
 
-    // Sensor summary
+    // Sensor summary for this delivery
     let sensorSummary = null;
     if (delivery) {
       const logs = await EnvironmentalSensing.find({ EDelID: delivery._id });
-      const avg = (arr) => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
-      const temps = logs.map((l) => l.Temperature).filter((v) => v != null);
-      const hums  = logs.map((l) => l.Humidity).filter((v) => v != null);
-      const gases = logs.map((l) => l.Gas).filter((v) => v != null);
+      const avg = arr =>
+        arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
+      const temps = logs.map(l => l.Temperature).filter(v => v != null);
+      const hums  = logs.map(l => l.Humidity).filter(v => v != null);
+      const gases = logs.map(l => l.Gas).filter(v => v != null);
       sensorSummary = {
         temperature: avg(temps),
         humidity:    avg(hums),
@@ -43,23 +42,20 @@ const getProductByQR = async (req, res) => {
     }
 
     res.json({
-      product: {
-        ProductID: product.ProductID,
-        SerialNo:  product.SerialNo,
-        QRCodeURL: product.QRCodeURL,
-      },
-      batch: batch ? {
+      batch: {
         BatchID:         batch.BatchID,
         Category:        batch.Category,
         Subcategory:     batch.Subcategory,
         DateSlaughtered: batch.DateSlaughtered,
         DateReceived:    batch.DateReceived,
+        Quantity:        batch.Quantity,
         ImageURL:        batch.ImageURL,
-      } : null,
+      },
       delivery: delivery ? {
-        DelID:     delivery.DelID,
-        Status:    delivery.Status,
-        CreatedAt: delivery.CreatedAt,
+        DelID:       delivery.DelID,
+        Status:      delivery.Status,
+        StorageType: delivery.StorageType,
+        CreatedAt:   delivery.CreatedAt,
       } : null,
       certificate: certificate ? {
         CertID:     certificate.CertID,
@@ -83,4 +79,4 @@ const getProductByQR = async (req, res) => {
   }
 };
 
-module.exports = { getProductByQR };
+module.exports = { getBatchByQR };

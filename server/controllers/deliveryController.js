@@ -4,6 +4,9 @@ const generateId = require('../utils/generateId');
 // POST /api/deliveries
 const createDelivery = async (req, res) => {
   try {
+    if (!req.body.StorageType) {
+      return res.status(400).json({ message: 'StorageType is required (Chilled or Frozen).' });
+    }
     const DelID = await generateId('DEL', 'Delivery');
     const delivery = await Delivery.create({ ...req.body, DelID, DelManuID: req.user.manuId });
     res.status(201).json(delivery);

@@ -23,6 +23,9 @@
     "mqtt": "^5.15.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
+    "node-fetch": "^2.7.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

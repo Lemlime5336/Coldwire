@@ -1,4 +1,5 @@
 const Alert = require('../models/Alert');
+const Delivery = require('../models/Delivery');
 const mongoose = require('mongoose');
 
 // GET /api/alerts
@@ -32,7 +33,20 @@ const resolveAlert = async (req, res) => {
 const getUnresolvedAlerts = async (req, res) => {
   try {
     const filter = { Resolved: false };
-    if (req.query.deliveryId) filter.ADelID = new mongoose.Types.ObjectId(req.query.deliveryId);
+
+    if (req.user.role === 'driver') {
+      // Scope to driver's active delivery only
+      const activeDelivery = await Delivery.findOne({
+        DelUserID: new mongoose.Types.ObjectId(req.user.id),
+        Status: { $ne: 'Complete' },
+      }).sort({ CreatedAt: -1 });
+
+      if (!activeDelivery) return res.json([]);
+      filter.ADelID = activeDelivery._id;
+    } else if (req.query.deliveryId) {
+      filter.ADelID = new mongoose.Types.ObjectId(req.query.deliveryId);
+    }
+
     const alerts = await Alert.find(filter).sort({ Priority: -1, LastUpdate: -1 });
     res.json(alerts);
   } catch (err) {
