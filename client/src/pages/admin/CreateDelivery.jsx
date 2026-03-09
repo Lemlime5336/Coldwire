@@ -55,9 +55,9 @@ export default function CreateDelivery() {
       .then(r => setTrucks((r.data || []).filter(x => x.IsActive)))
       .catch(() => {});
 
-    api.get('/api/users')
-      .then(r => setDrivers((r.data || []).filter(x => x.Role === 'driver' && x.IsActive)))
-      .catch(() => {});
+    api.get('/api/users?available=true')
+    .then(r => setDrivers((r.data || []).filter(x => x.Role === 'driver' && x.IsActive)))
+    .catch(() => {});
 
     api.get('/api/retailers')
       .then(r => setRetailers((r.data || []).filter(x => x.IsActive)))

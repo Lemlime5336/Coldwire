@@ -4,6 +4,8 @@ const IoTModule = require('../models/IoTModule');
 const EnvironmentalSensing = require('../models/EnvironmentalSensing');
 const DeliveryEvent = require('../models/DeliveryEvent');
 const Delivery = require('../models/Delivery');
+const Batch = require('../models/Batch');
+const RFIDTag = require('../models/RFIDTag');
 const Alert = require('../models/Alert');
 const { getBatchByRFID } = require('../controllers/batchController');
 
@@ -22,7 +24,6 @@ client.on('connect', () => {
   console.log('MQTT connected.');
   client.subscribe('coldwire/+/+/environmental_logs');
   client.subscribe('coldwire/+/+/batch_delivery_events');
-  // Camera topics
   client.subscribe('coldwire/+/+/camera_events');
   client.subscribe('coldwire/+/+/camera_snapshot');
   client.subscribe('coldwire/+/+/camera_status');
@@ -30,7 +31,6 @@ client.on('connect', () => {
 
 client.on('error', (err) => console.error('MQTT error:', err.message));
 
-// Returns { moduleObjectId, deliveryObjectId, delivery } or null
 async function getActiveContext(imidString) {
   const module = await IoTModule.findOne({ IMID: imidString, IsActive: true });
   if (!module) return null;
@@ -81,7 +81,6 @@ client.on('message', async (topic, payload) => {
     const imidString = parts[2];
     const msgType    = parts[3];
 
-    // ── Camera topics — handled before JSON parse (snapshot is binary) ──
     if (msgType === 'camera_snapshot') {
       const camModule = require('../camera');
       camModule.onCameraSnapshot(imidString, payload);
@@ -104,7 +103,6 @@ client.on('message', async (topic, payload) => {
       return;
     }
 
-    // ── Sensor / delivery event topics ───────────────────────────────────
     const data = JSON.parse(payload.toString());
 
     const context = await getActiveContext(imidString);
@@ -131,7 +129,6 @@ client.on('message', async (topic, payload) => {
         Timestamp:   timestamp ? new Date(timestamp) : new Date(),
       });
 
-      // StorageType-aware temperature threshold
       const isFrozen = delivery.StorageType === 'Frozen';
       const tempBreached = isFrozen
         ? temperature > -18
@@ -202,7 +199,15 @@ client.on('message', async (topic, payload) => {
         await Delivery.findByIdAndUpdate(deliveryObjectId, { Status: deliveryStatus });
       }
 
-      // Batch verification — only if an RFID tag was included in the event
+      // Release RFID tags when delivery is complete
+      if (eventType === 'delivered') {
+        const batches = await Batch.find({ BDelID: deliveryObjectId });
+        const rfidUIDs = batches.map(b => b.RFIDTag).filter(Boolean);
+        if (rfidUIDs.length) {
+          await RFIDTag.updateMany({ UID: { $in: rfidUIDs } }, { $set: { InUse: false } });
+        }
+      }
+
       if (rfid_tag) {
         const batch = await getBatchByRFID(rfid_tag);
 
@@ -239,7 +244,6 @@ client.on('message', async (topic, payload) => {
   }
 });
 
-// Used by cameraController to send commands to ESP32-CAM
 function publishCommand(topic, command) {
   client.publish(topic, command);
   console.log(`[MQTT] CMD → ${topic}: ${command}`);

@@ -1,5 +1,7 @@
 const DeliveryEvent = require('../models/DeliveryEvent');
 const Delivery = require('../models/Delivery');
+const Batch = require('../models/Batch');
+const RFIDTag = require('../models/RFIDTag');
 const generateId = require('../utils/generateId');
 
 // POST /api/delivery-events
@@ -16,6 +18,15 @@ const createEvent = async (req, res) => {
 
     if (status) {
       await Delivery.findByIdAndUpdate(event.DEvDelID, { Status: status });
+    }
+
+    // Release RFID tags when delivery is complete
+    if (event.EventType === 'delivered') {
+      const batches = await Batch.find({ BDelID: event.DEvDelID });
+      const rfidUIDs = batches.map(b => b.RFIDTag).filter(Boolean);
+      if (rfidUIDs.length) {
+        await RFIDTag.updateMany({ UID: { $in: rfidUIDs } }, { $set: { InUse: false } });
+      }
     }
 
     res.status(201).json(event);

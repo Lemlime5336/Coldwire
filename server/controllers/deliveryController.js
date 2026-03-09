@@ -1,5 +1,6 @@
 const Delivery = require('../models/Delivery');
 const generateId = require('../utils/generateId');
+const mongoose = require('mongoose');
 
 // POST /api/deliveries
 const createDelivery = async (req, res) => {
@@ -7,6 +8,18 @@ const createDelivery = async (req, res) => {
     if (!req.body.StorageType) {
       return res.status(400).json({ message: 'StorageType is required (Chilled or Frozen).' });
     }
+
+    // Prevent assigning a driver who already has an active delivery
+    if (req.body.DelUserID) {
+      const existing = await Delivery.findOne({
+        DelUserID: new mongoose.Types.ObjectId(req.body.DelUserID),
+        Status: { $ne: 'Complete' },
+      });
+      if (existing) {
+        return res.status(400).json({ message: `Driver already has an active delivery (${existing.DelID}).` });
+      }
+    }
+
     const DelID = await generateId('DEL', 'Delivery');
     const delivery = await Delivery.create({ ...req.body, DelID, DelManuID: req.user.manuId });
     res.status(201).json(delivery);
