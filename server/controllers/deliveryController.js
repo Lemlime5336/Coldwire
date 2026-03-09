@@ -54,8 +54,8 @@ const updateDeliveryStatus = async (req, res) => {
     const { eventType } = req.body;
     let status;
     if (['awaiting pickup', 'loading'].includes(eventType)) status = 'Not Started';
-    else if (eventType === 'en route') status = 'In Progress';
-    else if (['unloading', 'delivered'].includes(eventType)) status = 'Complete';
+    else if (['en route', 'unloading'].includes(eventType)) status = 'In Progress';
+    else if (eventType === 'delivered') status = 'Complete';
     else return res.status(400).json({ message: 'Invalid event type.' });
 
     const delivery = await Delivery.findByIdAndUpdate(

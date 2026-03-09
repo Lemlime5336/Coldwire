@@ -175,7 +175,6 @@ export default function CreateDelivery() {
           alignItems: 'center',
           gap: 16,
         }}>
-          <div style={{ fontSize: 48 }}>✅</div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>
             Delivery Created
           </h2>

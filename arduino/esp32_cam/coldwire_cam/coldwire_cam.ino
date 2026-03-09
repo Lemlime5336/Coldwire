@@ -1,4 +1,3 @@
-#include "secrets.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -8,12 +7,12 @@
 #include <WebServer.h>
 
 //  CONFIG
-const char* WIFI_SSID = WIFI_SSID;
-const char* WIFI_PASS = WIFI_PASS;
-const char* MQTT_HOST = MQTT_HOST;
+const char* WIFI_SSID = "ShifLemon";
+const char* WIFI_PASS = "Lemonade5336";
+const char* MQTT_HOST = "992b6470da74460f862f39a3b4f49528.s1.eu.hivemq.cloud";
 const int   MQTT_PORT = 8883;
-const char* MQTT_USER = MQTT_USER;
-const char* MQTT_PASS = MQTT_PASS;
+const char* MQTT_USER = "ColdwireM001";
+const char* MQTT_PASS = "Xegwyn-tunfub-sohhi0";
 
 const char* IMID      = "IM-001";
 const char* MANU_ID   = "MANU-00001";

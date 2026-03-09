@@ -11,8 +11,8 @@ const createEvent = async (req, res) => {
     // Auto-update delivery status based on event type
     let status;
     if (['awaiting pickup', 'loading'].includes(event.EventType)) status = 'Not Started';
-    else if (event.EventType === 'en route') status = 'In Progress';
-    else if (['unloading', 'delivered'].includes(event.EventType)) status = 'Complete';
+    else if (['en route', 'unloading'].includes(event.EventType)) status = 'In Progress';
+    else if (event.EventType === 'delivered') status = 'Complete';
 
     if (status) {
       await Delivery.findByIdAndUpdate(event.DEvDelID, { Status: status });

@@ -195,8 +195,8 @@ client.on('message', async (topic, payload) => {
 
       let deliveryStatus;
       if (['awaiting pickup', 'loading'].includes(eventType)) deliveryStatus = 'Not Started';
-      else if (eventType === 'en route') deliveryStatus = 'In Progress';
-      else if (['unloading', 'delivered'].includes(eventType)) deliveryStatus = 'Complete';
+      else if (['en route', 'unloading'].includes(eventType)) deliveryStatus = 'In Progress';
+      else if (eventType === 'delivered') deliveryStatus = 'Complete';
 
       if (deliveryStatus) {
         await Delivery.findByIdAndUpdate(deliveryObjectId, { Status: deliveryStatus });
