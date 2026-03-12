@@ -79,9 +79,9 @@ export default function ProductDetails() {
       <main className={styles.main}>
         {/* Batch hero */}
         <div className={styles.hero} style={{ animation: 'fadeUp 0.4s ease both' }}>
-          {batch?.ImageURL && (
+          {batch?.BatchImageURL && (
             <div className={styles.heroImg}>
-              <img src={batch.ImageURL} alt={batch?.Category} onError={e => e.target.style.display = 'none'} />
+              <img src={batch.BatchImageURL} alt={batch?.Category} onError={e => e.target.style.display = 'none'} />
             </div>
           )}
           <div className={styles.heroInfo}>

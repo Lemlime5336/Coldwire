@@ -9,8 +9,9 @@ const batchSchema = new mongoose.Schema({
   DateSlaughtered: { type: Date },
   DateReceived:    { type: Date },
   Quantity:        { type: Number },
-  ImageURL:        { type: String },
-  RFIDTag:         { type: String, sparse: true },
+  QRCodeURL:       { type: String },
+  BatchImageURL:   { type: String },
+  RFIDTag:         { type: String, unique: true, sparse: true },
 });
 
 module.exports = mongoose.model('Batch', batchSchema);

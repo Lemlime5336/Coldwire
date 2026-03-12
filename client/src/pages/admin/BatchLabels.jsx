@@ -23,7 +23,7 @@ function printBatch(batch) {
 </style>
 </head>
 <body>
-  <img src="${batch.ImageURL}" alt="QR ${batch.BatchID}" />
+  <img src="${batch.QRCodeURL}" alt="QR ${batch.BatchID}" />
   <p>${batch.BatchID}</p>
 </body></html>`);
   win.document.close();
@@ -33,10 +33,10 @@ function printBatch(batch) {
 
 function printAllBatches(batches) {
   const sections = batches
-    .filter(b => b.ImageURL)
+    .filter(b => b.QRCodeURL)
     .map(batch => `
       <div class="qr-page">
-        <img src="${batch.ImageURL}" alt="QR ${batch.BatchID}" />
+        <img src="${batch.QRCodeURL}" alt="QR ${batch.BatchID}" />
         <p>${batch.BatchID}</p>
       </div>`).join('');
 
@@ -105,7 +105,7 @@ export default function Products() {
     setGenerating(prev => ({ ...prev, [batch._id]: true }));
     try {
       const res = await api.post(`/api/batches/${batch._id}/qr`);
-      setBatches(prev => prev.map(b => b._id === batch._id ? { ...b, ImageURL: res.data.ImageURL } : b));
+      setBatches(prev => prev.map(b => b._id === batch._id ? { ...b, QRCodeURL: res.data.QRCodeURL } : b));
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to generate QR.');
     } finally {
@@ -117,7 +117,7 @@ export default function Products() {
     ? `Delivery ${selectedDelivery.DelID} · ${selectedDelivery.DelRetID?.RetName || 'Unknown Retailer'}`
     : '';
 
-  const allGenerated = batches.length > 0 && batches.every(b => b.ImageURL);
+  const allGenerated = batches.length > 0 && batches.every(b => b.QRCodeURL);
 
   if (loadingDeliveries) return <LoadingScreen />;
 
@@ -203,7 +203,7 @@ export default function Products() {
 
       {/* ── Per-batch cards ── */}
       {!loadingBatches && batches.map(batch => {
-        const isGenerated  = !!batch.ImageURL;
+        const isGenerated  = !!batch.QRCodeURL;
         const isGenerating = !!generating[batch._id];
 
         return (
@@ -271,7 +271,7 @@ export default function Products() {
                   gap: 10,
                 }}>
                   <img
-                    src={batch.ImageURL}
+                    src={batch.QRCodeURL}
                     alt={`QR for ${batch.BatchID}`}
                     style={{ width: 160, height: 160, borderRadius: 4 }}
                   />

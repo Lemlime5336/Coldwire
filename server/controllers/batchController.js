@@ -12,7 +12,6 @@ const createBatch = async (req, res) => {
     const data = { ...req.body, BatchID };
     if (!data.BCertID) delete data.BCertID;
 
-    // If an RFID UID was provided, validate and mark it InUse
     if (data.RFIDTag) {
       const tag = await RFIDTag.findOne({ UID: data.RFIDTag });
       if (!tag) return res.status(400).json({ message: `RFID tag ${data.RFIDTag} not found in system.` });
@@ -43,7 +42,7 @@ const getBatchesByDelivery = async (req, res) => {
   }
 };
 
-// POST /api/batches/:batchId/qr  — generate one QR for the whole batch, save to ImageURL
+// POST /api/batches/:batchId/qr — generate one QR for the whole batch, save to QRCodeURL
 // All items in a batch share the same info so one QR is sufficient.
 // Re-calling this overwrites the existing QR.
 const generateBatchQR = async (req, res) => {
@@ -52,10 +51,8 @@ const generateBatchQR = async (req, res) => {
     if (!batch) return res.status(404).json({ message: 'Batch not found.' });
 
     const frontendBase = process.env.FRONTEND_URL || 'http://localhost:5173';
-    // QR encodes a public batch info URL — consumers scan to see halal cert, category, delivery
     const qrTargetUrl = `${frontendBase}/batch/${batch.BatchID}`;
 
-    // Generate QR PNG buffer
     const qrBuffer = await QRCode.toBuffer(qrTargetUrl, {
       type: 'png',
       width: 400,
@@ -63,7 +60,6 @@ const generateBatchQR = async (req, res) => {
       color: { dark: '#1e3a5f', light: '#ffffff' },
     });
 
-    // Upload to Cloudinary, overwrite if exists
     const uploadResult = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
@@ -77,11 +73,28 @@ const generateBatchQR = async (req, res) => {
       stream.end(qrBuffer);
     });
 
-    // Save URL to batch ImageURL
-    batch.ImageURL = uploadResult.secure_url;
+    batch.QRCodeURL = uploadResult.secure_url;
     await batch.save();
 
-    res.json({ message: `QR generated for batch ${batch.BatchID}`, ImageURL: batch.ImageURL, batch });
+    res.json({ message: `QR generated for batch ${batch.BatchID}`, QRCodeURL: batch.QRCodeURL, batch });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/batches/:batchId/image — upload one product image per batch
+// Re-calling overwrites the existing image on Cloudinary.
+const uploadBatchImage = async (req, res) => {
+  try {
+    const batch = await Batch.findById(req.params.batchId);
+    if (!batch) return res.status(404).json({ message: 'Batch not found.' });
+
+    if (!req.file) return res.status(400).json({ message: 'No image provided.' });
+
+    batch.BatchImageURL = req.file.path;
+    await batch.save();
+
+    res.json({ message: `Image uploaded for batch ${batch.BatchID}`, BatchImageURL: batch.BatchImageURL, batch });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -92,4 +105,4 @@ const getBatchByRFID = async (uid) => {
   return await Batch.findOne({ RFIDTag: uid }).populate('BDelID');
 };
 
-module.exports = { createBatch, getBatchesByDelivery, generateBatchQR, getBatchByRFID };
+module.exports = { createBatch, getBatchesByDelivery, generateBatchQR, uploadBatchImage, getBatchByRFID };

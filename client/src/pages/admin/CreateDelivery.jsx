@@ -41,13 +41,15 @@ export default function CreateDelivery() {
     StorageType: '',
   });
 
-  const [batches, setBatches] = useState([emptyBatch()]);
-  const [batchSupplier, setBatchSupplier] = useState({});
+  const [batches, setBatches]               = useState([emptyBatch()]);
+  const [batchSupplier, setBatchSupplier]   = useState({});
   const [customCategory, setCustomCategory] = useState({});
   const [customSubcategory, setCustomSubcategory] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [createdDeliveryId, setCreatedDeliveryId] = useState(null);
+  const [batchImages, setBatchImages]       = useState({});
+  const [batchImagePreviews, setBatchImagePreviews] = useState({});
+  const [submitting, setSubmitting]         = useState(false);
+  const [error, setError]                   = useState('');
+  const [createdDeliveryId, setCreatedDeliveryId]     = useState(null);
   const [createdDeliveryLabel, setCreatedDeliveryLabel] = useState('');
 
   useEffect(() => {
@@ -56,8 +58,8 @@ export default function CreateDelivery() {
       .catch(() => {});
 
     api.get('/api/users?available=true')
-    .then(r => setDrivers((r.data || []).filter(x => x.Role === 'driver' && x.IsActive)))
-    .catch(() => {});
+      .then(r => setDrivers((r.data || []).filter(x => x.Role === 'driver' && x.IsActive)))
+      .catch(() => {});
 
     api.get('/api/retailers')
       .then(r => setRetailers((r.data || []).filter(x => x.IsActive)))
@@ -80,13 +82,35 @@ export default function CreateDelivery() {
       .catch(() => {});
   }, [api]);
 
+  // Revoke object URLs on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      Object.values(batchImagePreviews).forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [batchImagePreviews]);
+
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const setBatchField = (i, k, v) =>
     setBatches(bs => bs.map((b, idx) => idx === i ? { ...b, [k]: v } : b));
 
   const addBatch = () => setBatches(bs => [...bs, emptyBatch()]);
-  const removeBatch = (i) => setBatches(bs => bs.filter((_, idx) => idx !== i));
+
+  const removeBatch = (i) => {
+    setBatches(bs => bs.filter((_, idx) => idx !== i));
+    // clean up image state for removed batch
+    setBatchImages(prev => {
+      const next = { ...prev };
+      delete next[i];
+      return next;
+    });
+    setBatchImagePreviews(prev => {
+      if (prev[i]) URL.revokeObjectURL(prev[i]);
+      const next = { ...prev };
+      delete next[i];
+      return next;
+    });
+  };
 
   const handleSupplierChange = (i, suppId) => {
     setBatchSupplier(s => ({ ...s, [i]: suppId }));
@@ -115,6 +139,14 @@ export default function CreateDelivery() {
     }
   };
 
+  const handleBatchImageChange = (i, file) => {
+    if (!file) return;
+    // revoke previous preview URL for this batch if any
+    if (batchImagePreviews[i]) URL.revokeObjectURL(batchImagePreviews[i]);
+    setBatchImages(prev => ({ ...prev, [i]: file }));
+    setBatchImagePreviews(prev => ({ ...prev, [i]: URL.createObjectURL(file) }));
+  };
+
   const getAvailableTagsForBatch = (currentIndex) => {
     const selectedInOtherBatches = batches
       .filter((_, idx) => idx !== currentIndex)
@@ -141,15 +173,29 @@ export default function CreateDelivery() {
       const deliveryId = delRes.data._id;
       const deliveryLabel = delRes.data.DelID || deliveryId;
 
-      for (const batch of batches) {
-        if (batch.Category) {
-          await api.post('/api/batches', {
-            BDelID: deliveryId,
-            ...batch,
-            BCertID: batch.BCertID || undefined,
-            RFIDTag: batch.RFIDTag || undefined,
-            Quantity: Number(batch.Quantity),
-          });
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        if (!batch.Category) continue;
+
+        const batchRes = await api.post('/api/batches', {
+          BDelID: deliveryId,
+          ...batch,
+          BCertID: batch.BCertID || undefined,
+          RFIDTag: batch.RFIDTag || undefined,
+          Quantity: Number(batch.Quantity),
+        });
+
+        // upload batch image if one was selected — failure is non-blocking
+        if (batchImages[i]) {
+          try {
+            const formData = new FormData();
+            formData.append('batchImage', batchImages[i]);
+            await api.post(`/api/batches/${batchRes.data._id}/image`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+          } catch {
+            // image upload failed silently — batch still created
+          }
         }
       }
 
@@ -182,12 +228,8 @@ export default function CreateDelivery() {
             <strong>{createdDeliveryLabel}</strong> and its batches have been saved.
             Would you like to generate QR labels for the batches now?
           </p>
-
           <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <Link
-              to={`/admin/batch-labels?delivery=${createdDeliveryId}`}
-              style={{ textDecoration: 'none' }}
-            >
+            <Link to={`/admin/batch-labels?delivery=${createdDeliveryId}`} style={{ textDecoration: 'none' }}>
               <Button>Generate QR Labels →</Button>
             </Link>
             <Button variant="ghost" onClick={() => navigate('/admin/deliveries')}>
@@ -364,6 +406,52 @@ export default function CreateDelivery() {
                     <option key={t._id} value={t.UID}>{t.UID} ({t.TagID})</option>
                   ))}
                 </Select>
+
+                {/* Batch product image */}
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                    Batch Image 
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={e => handleBatchImageChange(i, e.target.files[0])}
+                    style={{ fontSize: 13, color: 'var(--text-primary)', width: '100%' }}
+                  />
+                  {batchImagePreviews[i] && (
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={batchImagePreviews[i]}
+                        alt={`Batch ${i + 1} preview`}
+                        style={{
+                          width: 72,
+                          height: 72,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(batchImagePreviews[i]);
+                          setBatchImages(prev => { const n = { ...prev }; delete n[i]; return n; });
+                          setBatchImagePreviews(prev => { const n = { ...prev }; delete n[i]; return n; });
+                        }}
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--red)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
 
               </div>
             </Card>
