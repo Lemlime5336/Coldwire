@@ -52,7 +52,7 @@ const getBatchByQR = async (req, res) => {
         DateSlaughtered: batch.DateSlaughtered,
         DateReceived:    batch.DateReceived,
         Quantity:        batch.Quantity,
-        QRCodeURL:        batch.QRCodeURL,
+        QRCodeURL:       batch.QRCodeURL,
         BatchImageURL:   batch.BatchImageURL, 
       },
       delivery: delivery ? {
