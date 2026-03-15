@@ -1,18 +1,23 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import styles from './AdminLayout.module.css';
+import {
+  LayoutDashboard, Truck, Activity, MapPin,
+  AlertTriangle, Camera, FileText, Building2,
+  Store, ShieldCheck, LogOut
+} from 'lucide-react';
 
 const nav = [
-  { to: '/admin', label: 'Dashboard', icon: '⬡', end: true },
-  { to: '/admin/deliveries', label: 'Deliveries', icon: '◈' },
-  { to: '/admin/sensors', label: 'Sensor Logs', icon: '◉' },
-  { to: '/admin/map', label: 'Live Map', icon: '◎' },
-  { to: '/admin/alerts', label: 'Alerts', icon: '◬' },
-  { to: '/admin/camera', label: 'Camera Feed', icon: '◫' },
-  { to: '/admin/reports', label: 'Reports', icon: '◧' },
-  { to: '/admin/suppliers', label: 'Suppliers', icon: '◰' },
-  { to: '/admin/retailers', label: 'Retailers', icon: '◱' },
-  { to: '/admin/certificates', label: 'Certificates', icon: '◐' },
+  { to: '/admin',              label: 'Dashboard',    icon: LayoutDashboard, end: true },
+  { to: '/admin/deliveries',   label: 'Deliveries',   icon: Truck },
+  { to: '/admin/sensors',      label: 'Sensor Logs',  icon: Activity },
+  { to: '/admin/map',          label: 'Live Map',     icon: MapPin },
+  { to: '/admin/alerts',       label: 'Alerts',       icon: AlertTriangle },
+  { to: '/admin/camera',       label: 'Camera Feed',  icon: Camera },
+  { to: '/admin/reports',      label: 'Reports',      icon: FileText },
+  { to: '/admin/suppliers',    label: 'Suppliers',    icon: Building2 },
+  { to: '/admin/retailers',    label: 'Retailers',    icon: Store },
+  { to: '/admin/certificates', label: 'Certificates', icon: ShieldCheck },
 ];
 
 export default function AdminLayout() {
@@ -36,7 +41,7 @@ export default function AdminLayout() {
           Admin Console
         </div>
         <nav className={styles.nav}>
-          {nav.map(({ to, label, icon, end }) => (
+          {nav.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -45,7 +50,7 @@ export default function AdminLayout() {
                 `${styles.navItem} ${isActive ? styles.active : ''}`
               }
             >
-              <span className={styles.navIcon}>{icon}</span>
+              <Icon size={16} className={styles.navIcon} />
               <span>{label}</span>
             </NavLink>
           ))}
@@ -59,7 +64,7 @@ export default function AdminLayout() {
             </div>
           </div>
           <button className={styles.logoutBtn} onClick={handleLogout} title="Logout">
-            ⏻
+            <LogOut size={16} />
           </button>
         </div>
       </aside>
