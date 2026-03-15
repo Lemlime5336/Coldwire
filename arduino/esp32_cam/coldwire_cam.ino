@@ -7,6 +7,7 @@
 #include "esp_camera.h"
 #include <WebServer.h>
 
+
 //  CONFIG
 const char* WIFI_SSID = WIFI_SSID;
 const char* WIFI_PASS = WIFI_PASS;
@@ -18,7 +19,8 @@ const char* MQTT_PASS = MQTT_PASS;
 const char* IMID      = "IM-001";
 const char* MANU_ID   = "MANU-00001";
 
-//  AI-THINKER PIN MAP — do not change
+
+//  AI-THINKER PIN MAP 
 #define PWDN_GPIO_NUM   32
 #define RESET_GPIO_NUM  -1
 #define XCLK_GPIO_NUM    0
@@ -44,7 +46,7 @@ WebServer        streamServer(80);
 bool          isRecording = false;
 unsigned long lastPing    = 0;
 
-//  TOPICS — ColdWire convention: coldwire/{manu}/{imid}/...
+//  TOPICS
 String T_STATUS()  { return "coldwire/" + String(MANU_ID) + "/" + String(IMID) + "/camera_status"; }
 String T_EVENT()   { return "coldwire/" + String(MANU_ID) + "/" + String(IMID) + "/camera_events"; }
 String T_CONTROL() { return "coldwire/" + String(MANU_ID) + "/" + String(IMID) + "/camera_control"; }
@@ -59,7 +61,7 @@ void publishStatus(const char* state) {
   doc["ms"]        = millis();
   char buf[256];
   serializeJson(doc, buf);
-  mqtt.publish(T_STATUS().c_str(), buf, true); // retained
+  mqtt.publish(T_STATUS().c_str(), buf, true);
   Serial.println("[STATUS] " + String(state));
 }
 
@@ -89,9 +91,9 @@ bool initCamera() {
   cfg.pin_pwdn=PWDN_GPIO_NUM; cfg.pin_reset=RESET_GPIO_NUM;
   cfg.xclk_freq_hz  = 20000000;
   cfg.pixel_format  = PIXFORMAT_JPEG;
-  cfg.frame_size    = FRAMESIZE_QVGA; // 320x240 — stable over WiFi
+  cfg.frame_size    = FRAMESIZE_QVGA;
   cfg.jpeg_quality  = 12;
-  cfg.fb_count      = 1;              // single buffer prevents FB-OVF
+  cfg.fb_count      = 1;
 
   if (esp_camera_init(&cfg) != ESP_OK) {
     Serial.println("[CAM] Init failed");
@@ -111,7 +113,11 @@ void handleStream() {
 
   while (client.connected()) {
     camera_fb_t* fb = esp_camera_fb_get();
-    if (!fb) { delay(10); continue; }
+    if (!fb) {
+      mqtt.loop();   // tick MQTT even on missed frame
+      delay(10);
+      continue;
+    }
 
     char hdr[80];
     snprintf(hdr, sizeof(hdr),
@@ -121,10 +127,13 @@ void handleStream() {
     client.write(fb->buf, fb->len);
     streamServer.sendContent("\r\n");
     esp_camera_fb_return(fb);
-    mqtt.loop(); // keep MQTT alive while streaming
-    delay(100);  // ~10fps
+
+    mqtt.loop();  // tick after every frame
+    delay(100);   // ~10fps
   }
+
   Serial.println("[CAM] Stream client disconnected");
+  if (!mqtt.connected()) mqttConnect();  // reconnect immediately if dropped
 }
 
 void publishSnapshot() {
@@ -182,13 +191,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
 
 //  MQTT CONNECTION
 void mqttConnect() {
-  // LWT uses camera_status topic with offline payload
   String lwt = "{\"imid\":\"" + String(IMID) + "\",\"state\":\"offline\",\"recording\":false}";
 
   while (!mqtt.connected()) {
     Serial.print("[MQTT] Connecting...");
     if (mqtt.connect(
-          IMID,           // client ID = IMID
+          IMID,
           MQTT_USER, MQTT_PASS,
           T_STATUS().c_str(), 1, true, lwt.c_str()
         )) {
@@ -216,18 +224,27 @@ void setup() {
   }
   Serial.println(" connected: " + WiFi.localIP().toString());
 
-  // Force Google DNS — fixes ESP32 DNS resolution issue
+  // Force Google DNS
   WiFi.setDNS(IPAddress(8,8,8,8), IPAddress(8,8,4,4));
   delay(500);
 
-  // MQTT — connect before camera to avoid TLS interference
+  // DNS debug — remove once stable
+  Serial.println("Resolving broker...");
+  IPAddress brokerIP;
+  if (WiFi.hostByName(MQTT_HOST, brokerIP)) {
+    Serial.println("Resolved: " + brokerIP.toString());
+  } else {
+    Serial.println("DNS FAILED — broker hostname unresolvable");
+  }
+
+  // MQTT
   wifiSecure.setInsecure();
-  wifiSecure.setHandshakeTimeout(30);
+  wifiSecure.setHandshakeTimeout(60); 
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(mqttCallback);
   mqtt.setBufferSize(40000);
-  mqtt.setSocketTimeout(30);
-  mqtt.setKeepAlive(15);
+  mqtt.setSocketTimeout(60);           
+  mqtt.setKeepAlive(60);            
   mqttConnect();
 
   // Camera + stream server
